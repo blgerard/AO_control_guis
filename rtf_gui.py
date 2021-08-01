@@ -26,6 +26,7 @@ Hwfs = lambda s, Ts: (1. - np.exp(-Ts*s))/(Ts*s)
 Hzoh=Hwfs
 Hlag = lambda s,tau: np.exp(-tau*s)
 Hcont = lambda s, Ts, g, l: g/(1. - l*np.exp(-Ts*s)) #leaky integrator
+#DM*=L*DM_{N-1}+G*DM_N+X*DM{N-2}
 Holsplane = lambda s, Ts, tau, g, l:  Hwfs(s, Ts)*Hlag(s,tau)*Hcont(s,Ts,g,l)*Hzoh(s,Ts)
 Hol = lambda f, Ts, tau, g, l:  Holsplane(1.j*2.*np.pi*f,Ts,tau,g,l)
 Hrej = lambda f, Ts, tau, g, l: 1./(1. + Hol(f, Ts, tau, g, l))
