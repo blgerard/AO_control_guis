@@ -3,18 +3,8 @@ gui for AO transfer functions
 '''
 
 from matplotlib.widgets import Slider, Button, RadioButtons
-import os
-import sys
-import itertools
-from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from scipy.ndimage.filters import gaussian_filter
-from scipy.ndimage.interpolation import rotate
-import scipy.ndimage.interpolation as inter
-from astropy.convolution import convolve,convolve_fft
-import scipy
 
 #magnitude and phase of transfer functions:
 mag = lambda tf: 20.*np.log10(np.sqrt(np.real(tf)**2.+np.imag(tf)**2.)) #magnitude in dB
@@ -33,11 +23,11 @@ Hrej = lambda f, Ts, tau, g, l: 1./(1. + Hol(f, Ts, tau, g, l))
 Hn = lambda f, Ts, tau, g, l: Hol(f, Ts, tau, g, l)*Hrej(f, Ts, tau, g, l)/Hwfs(1.j*2.*np.pi*f, Ts)
 
 #define initial conditions
-freq = lambda Ts: np.logspace(np.log10(0.1),np.log10(1./(Ts/2.)),500) #only plot up to the Nyquist limit 
+freq = lambda Ts: np.logspace(np.log10(0.1),np.log10(1./(2*Ts)),500) #only plot up to the Nyquist limit 
 
-g,l,Ts,tau=0.56,0.99,1e-3,1.636e-3
-f=np.logspace(np.log10(0.1),np.log10(1./(Ts/2.)),500) #only plot up to the Nyquist limit 
-#f=freq(Ts)
+g,l,Ts,tau=0.55,0.99,1e-3,1e-3
+#f=np.logspace(np.log10(0.1),np.log10(1./(Ts*2.)),500) #only plot up to the Nyquist limit 
+f=freq(Ts)
 
 magol=mag(Hol(f,Ts,tau,g,l))
 ind_margin=np.where(np.abs(magol)==np.min(np.abs(magol))) #this is where the tranfer function is 1
@@ -51,7 +41,7 @@ ax1,ax2,ax3,ax4=axes[0,0],axes[1,0],axes[0,1],axes[1,1]
 #ax1.set_xlabel('frequency (Hz)')
 ax1.set_ylabel('rejection amplitude (dB)')
 [line_ol]=ax1.plot(f,magol,lw=2,alpha=0.5,label='H$_{ol}$')
-zero_ol=ax1.axvline(zerof,alpha=0.5,color='red',linestyle='--')
+zero_ol=ax1.axvline(zerof,alpha=0.5,color='red',linestyle='--',label='0 dB freq')
 ax1.set_xscale('log')
 ax1.legend(loc='best')
 ax1.set_ylim(-20,80)
@@ -64,7 +54,8 @@ ax2.set_ylim(-400,-50)
 
 [line_ol_phase]=ax2.plot(f,phol,lw=2,alpha=0.5,label='H$_{ol}$')
 zero_ol_phase=ax2.axvline(zerof,alpha=0.5,color='red',linestyle='--')
-ax2.axhline(-180,alpha=0.5,color='green',linestyle='-.')
+ax2.axhline(-180,alpha=0.5,color='green',linestyle='-.',label='-180 deg')
+ax2.legend(loc='best')
 ax2.set_xscale('log')
 ax2.grid('on')
 
@@ -78,9 +69,13 @@ def plot2(f,tf,label):
 	ax3.set_xscale('log')
 	return line
 
-line_rej=plot2(f,mag(Hrej(f,Ts,tau,g,l)),'H$_{rej}$')
+phrej=mag(Hrej(f,Ts,tau,g,l))
+line_rej=plot2(f,phrej,'H$_{rej}$')
 line_n=plot2(f,mag(Hn(f,Ts,tau,g,l)),'H$_{n}$')
-ax3.legend(loc='best')
+threshold=2e-1
+zerodb=np.min(f[np.where(np.abs(phrej)<threshold)]) #zero dB bandwidth: lowestfrequency at which the rejection transfer function crosses 0 dB
+line_0db=ax3.axvline(zerodb,lw=2,color='red',ls='--',label='0 dB bandwidth')
+ax3.legend(loc='best',ncol=2)
 ax3.set_ylim(-40,40)
 ax3.grid('on')
 
@@ -97,9 +92,9 @@ phase_margin=ax4.axhline(phol[ind_margin]+180.,lw=2,alpha=0.5)
 # Add slider
 fig.subplots_adjust(bottom=0.3,top=0.95)
 gslider_ax  = fig.add_axes([0.1, 0.2, 0.65, 0.03])
-gslider = Slider(gslider_ax, 'g', 0.1, 2.0, valinit=g)
+gslider = Slider(gslider_ax, 'g', 0.1, 1.0, valinit=g)
 lslider_ax  = fig.add_axes([0.1, 0.15, 0.65, 0.03])
-lslider = Slider(lslider_ax, 'l', 0.95, 1.0, valinit=l,valfmt='%.3f')
+lslider = Slider(lslider_ax, 'l', 0.9, 1.0, valinit=l,valfmt='%.3f')
 tauslider_ax = fig.add_axes([0.1,0.1,0.65,0.03])
 tauslider=Slider(tauslider_ax,'$\\tau$',1e-4,10e-3,valinit=tau,valfmt='%.2e')
 tsslider_ax = fig.add_axes([0.1,0.05,0.65,0.03])
@@ -109,7 +104,7 @@ def sliders_on_changed(val):
 	l=lslider.val
 	tau=tauslider.val
 	Ts=tsslider.val
-	#f=freq(Ts)
+	f=freq(Ts)
 
 	magol=mag(Hol(f,Ts,tau,g,l))
 	phol=phase(Hol(f,Ts,tau,g,l))
@@ -122,8 +117,12 @@ def sliders_on_changed(val):
 	line_ol_phase.set_ydata(phol)
 	zero_ol_phase.set_xdata(zerof)
 
-	line_rej.set_ydata(mag(Hrej(f,Ts,tau,g,l)))
+	phrej=mag(Hrej(f,Ts,tau,g,l))
+	line_rej.set_ydata(phrej)
 	line_n.set_ydata(mag(Hn(f,Ts,tau,g,l)))
+	zerodb=np.min(f[np.where(np.abs(phrej)<threshold)])
+	line_0db.set_xdata(zerodb)
+
 
 	phase_margin.set_ydata(phol[ind_margin]+180.)
 
